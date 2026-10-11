@@ -84,6 +84,7 @@ def run_training():
     # Build override env for train.py
     env = os.environ.copy()
     env["PYTHONUTF8"] = "1"
+    env["PYTHONUNBUFFERED"] = "1"
     env["DBM_PRETRAIN_EPOCHS"]  = str(data.get("pretrain_epochs", 25))
     env["DBM_FINETUNE_EPOCHS"]  = str(data.get("finetune_epochs", 15))
     env["DBM_BATCH_SIZE"]       = str(data.get("batch_size", 64))
@@ -99,10 +100,13 @@ def run_training():
 
         try:
             proc = subprocess.Popen(
-                [sys.executable, str(BASE_DIR / "train.py")],
+                [sys.executable, "-u", str(BASE_DIR / "train.py")],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
+                bufsize=1,
                 env=env,
                 cwd=str(BASE_DIR),
             )

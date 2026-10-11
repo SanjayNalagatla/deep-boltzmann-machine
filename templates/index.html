@@ -1245,7 +1245,7 @@ function handleEvent(data) {
     let cls = 'info';
     if (line.includes('Epoch') && line.includes('|'))     cls = 'epoch';
     if (line.includes('===') || line.includes('---'))      cls = 'header';
-    if (line.includes('[') && /\[.\\/5\]/.test(line))     cls = 'section';
+    if (line.includes('[') && line.includes('/5]'))       cls = 'section';
     if (line.includes('Saved') || line.includes('Saved')) cls = 'saved';
     if (line.includes('Validation MSE') || line.includes('improvement')) cls = 'metric';
     if (line.includes('Error') && !line.includes('Recon')) cls = 'warn';
