@@ -1,0 +1,1464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="description" content="Deep Boltzmann Machine Feature Learning Dashboard — interactive training, live metrics, and visualisation gallery."/>
+  <title>Deep Boltzmann Machine — Feature Learning Dashboard</title>
+  <style>
+    /* ── Reset & Base ────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:          #08080f;
+      --surface:     #10101c;
+      --surface2:    #181828;
+      --surface3:    #1e1e32;
+      --border:      #2a2a44;
+      --border2:     #3a3a5a;
+      --accent:      #7c6af7;
+      --accent2:     #a78bfa;
+      --pink:        #f472b6;
+      --teal:        #2dd4bf;
+      --amber:       #fbbf24;
+      --green:       #4ade80;
+      --red:         #f87171;
+      --text:        #e2e2f0;
+      --text2:       #9090b8;
+      --text3:       #606080;
+      --radius:      12px;
+      --radius-sm:   8px;
+      --glow:        0 0 30px rgba(124,106,247,0.25);
+      --glow-sm:     0 0 12px rgba(124,106,247,0.18);
+      --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+      --mono: 'Consolas', 'Cascadia Code', 'Courier New', monospace;
+    }
+
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Animated bg grid ───────────────────────────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: -1;
+      background-image:
+        linear-gradient(rgba(124,106,247,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(124,106,247,0.04) 1px, transparent 1px);
+      background-size: 40px 40px;
+      animation: gridPan 40s linear infinite;
+    }
+    @keyframes gridPan {
+      from { background-position: 0 0; }
+      to   { background-position: 40px 40px; }
+    }
+
+    /* ── Top navbar ─────────────────────────────────────────────────────── */
+    .navbar {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(8,8,15,0.85);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 32px;
+      height: 64px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .navbar-brand {
+      display: flex; align-items: center; gap: 12px;
+    }
+    .brand-icon {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, var(--accent), var(--pink));
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; box-shadow: var(--glow-sm);
+      animation: pulseIcon 3s ease-in-out infinite;
+    }
+    @keyframes pulseIcon {
+      0%,100% { box-shadow: var(--glow-sm); }
+      50% { box-shadow: 0 0 24px rgba(124,106,247,0.5); }
+    }
+    .brand-title {
+      font-size: 16px; font-weight: 700;
+      background: linear-gradient(90deg, var(--accent2), var(--pink));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .brand-sub { font-size: 11px; color: var(--text3); font-weight: 400; margin-top: 1px; }
+
+    /* ── Page-level tabs (nav) ────────────────────────────────────────────── */
+    .page-tabs { display: flex; gap: 3px; }
+    .page-tab {
+      padding: 5px 14px; border-radius: 6px;
+      font-size: 12px; font-weight: 500;
+      color: var(--text3); cursor: pointer;
+      transition: all .18s; border: 1px solid transparent;
+    }
+    .page-tab:hover { color: var(--text2); background: var(--surface2); }
+    .page-tab.active { color: var(--text); background: var(--surface2); border-color: var(--border); }
+    .page { display: none; }
+    .page.active { display: block; }
+    .nav-status {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 12px; color: var(--text2);
+    }
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--text3);
+      transition: background 0.3s, box-shadow 0.3s;
+    }
+    .status-dot.running {
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green);
+      animation: blink 1s ease-in-out infinite;
+    }
+    .status-dot.done { background: var(--teal); box-shadow: 0 0 8px var(--teal); }
+    .status-dot.error { background: var(--red); box-shadow: 0 0 8px var(--red); }
+    @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+
+    /* ── Layout ─────────────────────────────────────────────────────────── */
+    .layout {
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      grid-template-rows: auto;
+      gap: 0;
+      min-height: calc(100vh - 64px);
+    }
+
+    /* ── Sidebar ─────────────────────────────────────────────────────────── */
+    .sidebar {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 24px 20px;
+      display: flex; flex-direction: column; gap: 20px;
+      overflow-y: auto;
+    }
+    .section-label {
+      font-size: 10px; font-weight: 700; letter-spacing: 1.5px;
+      color: var(--text3); text-transform: uppercase; margin-bottom: 10px;
+    }
+
+    /* Architecture diagram */
+    .arch-diagram {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+    }
+    .arch-layers {
+      display: flex; flex-direction: column; align-items: center; gap: 0;
+    }
+    .arch-layer {
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
+      width: 100%;
+    }
+    .arch-layer-bar {
+      height: 32px; border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 600; color: #fff;
+      transition: width 0.5s ease, opacity 0.3s;
+      position: relative; overflow: hidden;
+    }
+    .arch-layer-bar::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.1) 50%, transparent 100%);
+      animation: shimmer 2s ease-in-out infinite;
+    }
+    @keyframes shimmer {
+      from { transform: translateX(-100%); }
+      to   { transform: translateX(100%); }
+    }
+    .arch-arrow {
+      width: 2px; height: 14px;
+      background: linear-gradient(to bottom, var(--border2), var(--accent));
+      position: relative;
+    }
+    .arch-arrow::after {
+      content: '▼'; position: absolute; bottom: -8px; left: -5px;
+      font-size: 8px; color: var(--accent);
+    }
+    .arch-arrow.bidirectional::before {
+      content: '▲'; position: absolute; top: -8px; left: -5px;
+      font-size: 8px; color: var(--pink);
+    }
+    .arch-layer-label {
+      font-size: 10px; color: var(--text2);
+    }
+
+    /* Config form */
+    .config-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+    }
+    .form-group { margin-bottom: 14px; }
+    .form-group:last-child { margin-bottom: 0; }
+    .form-label {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 11px; font-weight: 500; color: var(--text2);
+      margin-bottom: 6px;
+    }
+    .form-value {
+      font-family: var(--mono);
+      font-size: 11px; color: var(--accent2);
+      background: var(--surface3);
+      padding: 2px 6px; border-radius: 4px;
+    }
+    input[type=range] {
+      width: 100%; height: 4px; appearance: none;
+      background: var(--border2); border-radius: 2px; outline: none; cursor: pointer;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      appearance: none; width: 14px; height: 14px; border-radius: 50%;
+      background: var(--accent); cursor: pointer;
+      box-shadow: 0 0 6px rgba(124,106,247,0.5);
+      transition: transform 0.15s;
+    }
+    input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+
+    /* Buttons */
+    .btn {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 10px 18px; border-radius: var(--radius-sm);
+      font-size: 13px; font-weight: 600; cursor: pointer;
+      border: none; transition: all 0.2s; width: 100%;
+      font-family: var(--sans);
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), #6d54f0);
+      color: #fff;
+      box-shadow: 0 4px 20px rgba(124,106,247,0.3);
+    }
+    .btn-primary:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 24px rgba(124,106,247,0.45);
+    }
+    .btn-primary:active:not(:disabled) { transform: translateY(0); }
+    .btn-danger {
+      background: rgba(248,113,113,0.15);
+      color: var(--red); border: 1px solid rgba(248,113,113,0.3);
+    }
+    .btn-danger:hover:not(:disabled) { background: rgba(248,113,113,0.25); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-group { display: flex; gap: 8px; flex-direction: column; }
+
+    /* ── Main content ───────────────────────────────────────────────────── */
+    .main {
+      padding: 28px 32px;
+      display: flex; flex-direction: column; gap: 24px;
+      overflow-y: auto;
+    }
+
+    /* ── Stats row ─────────────────────────────────────────────────────── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+      transition: border-color 0.3s, box-shadow 0.3s;
+    }
+    .stat-card:hover { border-color: var(--border2); box-shadow: var(--glow-sm); }
+    .stat-label { font-size: 10px; font-weight: 600; letter-spacing: 1px; color: var(--text3); text-transform: uppercase; }
+    .stat-value {
+      font-size: 24px; font-weight: 800; margin-top: 6px;
+      font-family: var(--mono);
+      background: linear-gradient(90deg, var(--accent2), var(--teal));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .stat-sub { font-size: 10px; color: var(--text3); margin-top: 3px; }
+
+    /* ── Training panel ─────────────────────────────────────────────────── */
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .panel-header {
+      padding: 14px 20px;
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .panel-title {
+      font-size: 13px; font-weight: 600; color: var(--text);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .panel-badge {
+      font-size: 10px; padding: 2px 8px; border-radius: 20px;
+      font-weight: 600;
+    }
+    .badge-accent { background: rgba(124,106,247,0.2); color: var(--accent2); }
+    .badge-green  { background: rgba(74,222,128,0.15); color: var(--green); }
+    .badge-amber  { background: rgba(251,191,36,0.15); color: var(--amber); }
+
+    /* ── Progress bar ───────────────────────────────────────────────────── */
+    .progress-section { padding: 16px 20px; border-bottom: 1px solid var(--border); }
+    .progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .progress-text { font-size: 12px; color: var(--text2); }
+    .progress-pct  { font-size: 12px; font-weight: 600; font-family: var(--mono); color: var(--accent2); }
+    .progress-track {
+      height: 6px; background: var(--surface3); border-radius: 3px; overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%; border-radius: 3px;
+      background: linear-gradient(90deg, var(--accent), var(--teal));
+      transition: width 0.5s ease;
+      box-shadow: 0 0 8px rgba(124,106,247,0.4);
+      width: 0%;
+    }
+
+    /* Layer progress pips */
+    .layer-pips { display: flex; gap: 8px; margin-top: 10px; }
+    .layer-pip {
+      flex: 1; height: 4px; border-radius: 2px;
+      background: var(--surface3);
+      transition: background 0.4s, box-shadow 0.4s;
+    }
+    .layer-pip.active {
+      background: linear-gradient(90deg, var(--accent), var(--teal));
+      box-shadow: 0 0 8px rgba(124,106,247,0.4);
+      animation: progressPulse 1.5s ease-in-out infinite;
+    }
+    .layer-pip.done { background: var(--teal); }
+    @keyframes progressPulse {
+      0%,100% { opacity:1; } 50% { opacity:0.6; }
+    }
+
+    /* ── Log terminal ───────────────────────────────────────────────────── */
+    .log-terminal {
+      background: #050508;
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.7;
+      padding: 16px 20px;
+      height: 280px;
+      overflow-y: auto;
+      color: #8888aa;
+    }
+    .log-terminal::-webkit-scrollbar { width: 4px; }
+    .log-terminal::-webkit-scrollbar-track { background: transparent; }
+    .log-terminal::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    .log-line { white-space: pre-wrap; word-break: break-all; }
+    .log-line.info    { color: #8888aa; }
+    .log-line.epoch   { color: #7c6af7; }
+    .log-line.header  { color: #59d6c0; }
+    .log-line.metric  { color: #fbbf24; }
+    .log-line.saved   { color: #4ade80; }
+    .log-line.warn    { color: #f87171; }
+    .log-line.section { color: #f472b6; font-weight: 600; }
+    .log-cursor::after {
+      content: '▊';
+      animation: cursorBlink 0.8s step-start infinite;
+      color: var(--accent);
+    }
+    @keyframes cursorBlink { 0%,100% { opacity:1; } 50% { opacity:0; } }
+
+    /* ── Two-column for log + chart ─────────────────────────────────────── */
+    .training-grid {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 16px;
+    }
+
+    /* ── Mini live chart ─────────────────────────────────────────────────── */
+    .chart-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      display: flex; flex-direction: column;
+    }
+    .chart-canvas-wrap {
+      padding: 12px 16px; flex: 1;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    #liveChart { width: 100%; height: 220px; }
+    .chart-legend {
+      display: flex; flex-wrap: wrap; gap: 8px; padding: 0 0 4px;
+    }
+    .legend-item {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 10px; color: var(--text2);
+    }
+    .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+    /* ── Results gallery ─────────────────────────────────────────────────── */
+    .gallery-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+    }
+    .gallery-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      transition: border-color 0.25s, transform 0.25s, box-shadow 0.25s;
+      cursor: pointer;
+    }
+    .gallery-card:hover {
+      border-color: var(--accent);
+      transform: translateY(-3px);
+      box-shadow: 0 8px 32px rgba(124,106,247,0.2);
+    }
+    .gallery-card img {
+      width: 100%; height: 180px;
+      object-fit: cover; display: block;
+      background: var(--surface2);
+    }
+    .gallery-card-footer {
+      padding: 10px 14px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .gallery-icon { font-size: 16px; }
+    .gallery-label { font-size: 12px; font-weight: 500; color: var(--text); }
+
+    /* ── Lightbox ────────────────────────────────────────────────────────── */
+    .lightbox {
+      display: none; position: fixed; inset: 0; z-index: 200;
+      background: rgba(0,0,0,0.9);
+      align-items: center; justify-content: center;
+      backdrop-filter: blur(8px);
+    }
+    .lightbox.open { display: flex; }
+    .lightbox-inner { position: relative; max-width: 90vw; max-height: 90vh; }
+    .lightbox-inner img { max-width: 90vw; max-height: 85vh; border-radius: 8px; display: block; }
+    .lightbox-close {
+      position: absolute; top: -14px; right: -14px;
+      width: 32px; height: 32px; border-radius: 50%;
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text2); font-size: 16px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.2s;
+    }
+    .lightbox-close:hover { background: var(--red); color: #fff; }
+    .lightbox-caption {
+      text-align: center; padding: 10px;
+      font-size: 13px; color: var(--text2);
+    }
+
+    /* ── Empty state ─────────────────────────────────────────────────────── */
+    .empty-state {
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 60px 20px; color: var(--text3); gap: 12px;
+    }
+    .empty-icon { font-size: 48px; opacity: 0.4; }
+    .empty-text { font-size: 14px; }
+
+    /* ── Tab system ─────────────────────────────────────────────────────── */
+    .tabs { display: flex; gap: 4px; padding: 16px 20px 0; }
+    .tab {
+      padding: 8px 16px; border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+      font-size: 12px; font-weight: 500; cursor: pointer;
+      color: var(--text3); border: 1px solid transparent;
+      transition: all 0.2s; background: transparent;
+      border-bottom: none;
+    }
+    .tab.active { color: var(--text); background: var(--surface); border-color: var(--border); }
+    .tab-panels { background: var(--surface); border: 1px solid var(--border); border-radius: 0 var(--radius) var(--radius) var(--radius); }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── Scrollbar global ────────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--border2); }
+
+    /* ── Glow text ───────────────────────────────────────────────────────── */
+    .glow-text {
+      background: linear-gradient(135deg, var(--accent2), var(--pink), var(--teal));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+
+    /* ── Utility ─────────────────────────────────────────────────────────── */
+    .flex-center { display: flex; align-items: center; gap: 8px; }
+    .mt-4 { margin-top: 4px; }
+    .mt-8 { margin-top: 8px; }
+    .divider { height: 1px; background: var(--border); margin: 4px 0; }
+
+    /* ════════════════════════════════════════════════
+       ABOUT / THEORY PAGE
+    ════════════════════════════════════════════════ */
+    .about-wrap { max-width: 880px; margin: 0 auto; padding: 32px 28px 60px; }
+    .about-hero {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 30px 34px; margin-bottom: 24px;
+      position: relative; overflow: hidden;
+    }
+    .about-hero::before {
+      content: ''; position: absolute; top: -60px; right: -60px;
+      width: 220px; height: 220px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(124,106,247,.18), transparent 70%);
+      pointer-events: none;
+    }
+    .about-hero h1 {
+      font-size: 26px; font-weight: 800; letter-spacing: -.4px;
+      background: linear-gradient(120deg, var(--accent2), var(--pink), var(--teal));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      margin-bottom: 10px;
+    }
+    .about-hero p { font-size: 13.5px; color: var(--text2); line-height: 1.72; max-width: 640px; }
+    .meta-chips { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+    .chip {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 20px; padding: 4px 13px;
+      font-size: 11px; color: var(--text2);
+    }
+
+    .theory-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 18px; }
+    .theory-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 20px 22px;
+    }
+    .theory-card h3 {
+      font-size: 12.5px; font-weight: 700; color: var(--accent2);
+      margin-bottom: 9px; display: flex; align-items: center; gap: 7px;
+    }
+    .theory-card p, .theory-card li { font-size: 12px; color: var(--text2); line-height: 1.72; }
+    .theory-card ul { padding-left: 16px; }
+    .theory-card li { margin-bottom: 3px; }
+    .theory-card code {
+      font-family: var(--mono); font-size: 11px; color: var(--teal);
+      background: var(--surface2); padding: 1px 5px; border-radius: 3px;
+    }
+
+    .eq-box {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 20px 26px; margin-bottom: 16px;
+    }
+    .eq-box h3 { font-size: 12.5px; font-weight: 700; color: var(--amber); margin-bottom: 14px; }
+    .eq-row { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 10px; }
+    .eq-name { font-size: 10.5px; color: var(--text3); min-width: 130px; padding-top: 4px; }
+    .eq-formula {
+      font-family: var(--mono); font-size: 11.5px; color: var(--text);
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 4px; padding: 5px 11px; flex: 1;
+    }
+
+    .flow-row { display: flex; align-items: center; flex-wrap: wrap; gap: 0; margin-bottom: 4px; }
+    .flow-step {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 7px; padding: 10px 14px; text-align: center; min-width: 100px;
+    }
+    .step-num  { font-size: 9px; color: var(--text3); font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 3px; }
+    .step-name { font-size: 11px; font-weight: 600; color: var(--text); }
+    .step-desc { font-size: 9px; color: var(--text3); margin-top: 2px; }
+    .flow-arrow { font-size: 16px; color: var(--border2); padding: 0 6px; }
+
+    .fig-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    .fig-table th {
+      text-align: left; font-size: 9.5px; font-weight: 700; letter-spacing: 1.2px;
+      text-transform: uppercase; color: var(--text3);
+      padding: 7px 12px; border-bottom: 1px solid var(--border);
+    }
+    .fig-table td { padding: 8px 12px; font-size: 12px; color: var(--text2); border-bottom: 1px solid var(--surface2); }
+    .fig-table tr:hover td { background: var(--surface2); }
+    .tag { font-size: 9px; padding: 2px 7px; border-radius: 10px; font-weight: 600; }
+    .tag-purple { background: rgba(124,106,247,.18); color: var(--accent2); }
+    .tag-teal   { background: rgba(45,212,191,.14);  color: var(--teal); }
+    .tag-amber  { background: rgba(251,191,36,.14);  color: var(--amber); }
+  </style>
+</head>
+<body>
+
+<!-- ── Navbar ─────────────────────────────────────────────────────────────── -->
+<nav class="navbar">
+  <div class="navbar-brand">
+    <div class="brand-icon">🧠</div>
+    <div>
+      <div class="brand-title">Deep Boltzmann Machine</div>
+      <div class="brand-sub">Deep Feature Learning Dashboard</div>
+    </div>
+  </div>
+  <div class="page-tabs">
+    <div class="page-tab active" id="ptab-dash"  onclick="showPage('dash')">🚀 Dashboard</div>
+    <div class="page-tab"        id="ptab-about" onclick="showPage('about')">📖 About &amp; Theory</div>
+  </div>
+  <div class="nav-status">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusText">Ready</span>
+    <span style="color:var(--border2)">|</span>
+    <span id="elapsedText" style="font-family:var(--mono); font-size:11px; color:var(--text3)">—</span>
+  </div>
+</nav>
+
+<!-- ── DASHBOARD PAGE ───────────────────────────────────────────────────────── -->
+<div class="page active" id="page-dash">
+
+<!-- ── Layout ─────────────────────────────────────────────────────────────── -->
+<div class="layout">
+
+
+  <!-- ── Sidebar ──────────────────────────────────────────────────────────── -->
+  <aside class="sidebar">
+
+    <!-- Architecture -->
+    <div>
+      <div class="section-label">Architecture</div>
+      <div class="arch-diagram">
+        <div class="arch-layers" id="archDiagram">
+          <div class="arch-layer">
+            <div class="arch-layer-bar" style="width:100%;background:linear-gradient(135deg,rgba(124,106,247,0.8),rgba(124,106,247,0.4))">64 units</div>
+            <div class="arch-layer-label">Visible</div>
+          </div>
+          <div class="arch-arrow bidirectional" style="margin:2px 0"></div>
+          <div class="arch-layer">
+            <div class="arch-layer-bar" style="width:100%;background:linear-gradient(135deg,rgba(244,114,182,0.8),rgba(244,114,182,0.4))">64 units</div>
+            <div class="arch-layer-label">Hidden 1</div>
+          </div>
+          <div class="arch-arrow bidirectional" style="margin:2px 0"></div>
+          <div class="arch-layer">
+            <div class="arch-layer-bar" style="width:50%;background:linear-gradient(135deg,rgba(45,212,191,0.8),rgba(45,212,191,0.4))">32 units</div>
+            <div class="arch-layer-label">Hidden 2</div>
+          </div>
+          <div class="arch-arrow bidirectional" style="margin:2px 0"></div>
+          <div class="arch-layer">
+            <div class="arch-layer-bar" style="width:30%;background:linear-gradient(135deg,rgba(251,191,36,0.8),rgba(251,191,36,0.4))">16 units</div>
+            <div class="arch-layer-label">Hidden 3</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Config -->
+    <div>
+      <div class="section-label">Hyperparameters</div>
+      <div class="config-card">
+
+        <div class="form-group">
+          <div class="form-label">Pre-train Epochs <span class="form-value" id="valPretrain">25</span></div>
+          <input type="range" id="sliderPretrain" min="5" max="60" value="25" step="5"
+                 oninput="document.getElementById('valPretrain').textContent=this.value"/>
+        </div>
+
+        <div class="form-group">
+          <div class="form-label">Fine-tune Epochs <span class="form-value" id="valFinetune">15</span></div>
+          <input type="range" id="sliderFinetune" min="5" max="40" value="15" step="5"
+                 oninput="document.getElementById('valFinetune').textContent=this.value"/>
+        </div>
+
+        <div class="form-group">
+          <div class="form-label">Learning Rate <span class="form-value" id="valLR">0.01</span></div>
+          <input type="range" id="sliderLR" min="1" max="5" value="2" step="1"
+                 oninput="updateLR(this.value)"/>
+        </div>
+
+        <div class="form-group">
+          <div class="form-label">Batch Size <span class="form-value" id="valBatch">64</span></div>
+          <input type="range" id="sliderBatch" min="32" max="256" value="64" step="32"
+                 oninput="document.getElementById('valBatch').textContent=this.value"/>
+        </div>
+
+        <div class="form-group">
+          <div class="form-label">Samples <span class="form-value" id="valSamples">2000</span></div>
+          <input type="range" id="sliderSamples" min="500" max="4000" value="2000" step="500"
+                 oninput="document.getElementById('valSamples').textContent=this.value"/>
+        </div>
+
+        <div class="divider" style="margin:12px 0"></div>
+        <div style="font-size:10px; color:var(--text3); margin-bottom:10px">Hidden Layer Sizes (0 = auto)</div>
+
+        <div class="form-group">
+          <div class="form-label">H1 <span class="form-value" id="valH1">Auto</span></div>
+          <input type="range" id="sliderH1" min="0" max="256" value="0" step="16"
+                 oninput="updateH('H1',this.value)"/>
+        </div>
+        <div class="form-group">
+          <div class="form-label">H2 <span class="form-value" id="valH2">Auto</span></div>
+          <input type="range" id="sliderH2" min="0" max="128" value="0" step="16"
+                 oninput="updateH('H2',this.value)"/>
+        </div>
+        <div class="form-group">
+          <div class="form-label">H3 <span class="form-value" id="valH3">Auto</span></div>
+          <input type="range" id="sliderH3" min="0" max="64" value="0" step="8"
+                 oninput="updateH('H3',this.value)"/>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Run buttons -->
+    <div class="btn-group">
+      <button class="btn btn-primary" id="btnRun" onclick="startTraining()">
+        <span>▶</span> Run Training
+      </button>
+      <button class="btn btn-danger" id="btnStop" onclick="stopTraining()" disabled>
+        <span>⏹</span> Stop
+      </button>
+    </div>
+
+    <!-- Quick metrics -->
+    <div>
+      <div class="section-label">Last Results</div>
+      <div class="config-card" style="display:flex;flex-direction:column;gap:8px;">
+        <div class="flex-center" style="justify-content:space-between">
+          <span style="font-size:11px;color:var(--text3)">Pre-train MSE</span>
+          <span id="metaPretrain" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--amber)">—</span>
+        </div>
+        <div class="flex-center" style="justify-content:space-between">
+          <span style="font-size:11px;color:var(--text3)">Fine-tune MSE</span>
+          <span id="metaFinetune" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--teal)">—</span>
+        </div>
+        <div class="flex-center" style="justify-content:space-between">
+          <span style="font-size:11px;color:var(--text3)">Improvement</span>
+          <span id="metaImprove" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--green)">—</span>
+        </div>
+        <div class="flex-center" style="justify-content:space-between">
+          <span style="font-size:11px;color:var(--text3)">Architecture</span>
+          <span id="metaArch" style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--accent2)">—</span>
+        </div>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- ── Main ──────────────────────────────────────────────────────────────── -->
+  <main class="main">
+
+    <!-- Stats row -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Current Epoch</div>
+        <div class="stat-value" id="statEpoch">—</div>
+        <div class="stat-sub" id="statEpochOf"></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Current Layer</div>
+        <div class="stat-value" id="statLayer">—</div>
+        <div class="stat-sub">of 3 hidden layers</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Recon Error</div>
+        <div class="stat-value" id="statError">—</div>
+        <div class="stat-sub">mean squared error</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Wall Time</div>
+        <div class="stat-value" id="statTime">—</div>
+        <div class="stat-sub">seconds elapsed</div>
+      </div>
+    </div>
+
+    <!-- Training panel -->
+    <div>
+      <div class="tabs" id="tabBar">
+        <div class="tab active" onclick="switchTab('log')"   id="tab-log">📋 Training Log</div>
+        <div class="tab"        onclick="switchTab('chart')" id="tab-chart">📈 Live Chart</div>
+      </div>
+      <div class="tab-panels">
+
+        <!-- Log tab -->
+        <div class="tab-panel active" id="panel-log">
+          <div class="progress-section">
+            <div class="progress-header">
+              <span class="progress-text" id="progressLabel">Idle</span>
+              <span class="progress-pct" id="progressPct">0%</span>
+            </div>
+            <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+            <div class="layer-pips" id="layerPips">
+              <div class="layer-pip" id="pip1"></div>
+              <div class="layer-pip" id="pip2"></div>
+              <div class="layer-pip" id="pip3"></div>
+              <div class="layer-pip" id="pip4" style="background:rgba(251,191,36,0.2)"></div>
+            </div>
+            <div style="display:flex;gap:12px;margin-top:6px;font-size:9px;color:var(--text3)">
+              <span>Layer 1</span><span>Layer 2</span><span>Layer 3</span>
+              <span style="color:rgba(251,191,36,0.7)">Fine-tune</span>
+            </div>
+          </div>
+          <div class="log-terminal" id="logTerminal">
+            <span class="log-line info">▸  Configure hyperparameters on the left and click  <span style="color:var(--accent2)">Run Training</span>  to begin.</span>
+          </div>
+        </div>
+
+        <!-- Chart tab -->
+        <div class="tab-panel" id="panel-chart">
+          <div style="padding:16px 20px">
+            <canvas id="liveChart" height="240"></canvas>
+            <div class="chart-legend" id="chartLegend">
+              <div class="legend-item">
+                <div class="legend-dot" style="background:#7c6af7"></div> Layer 1
+              </div>
+              <div class="legend-item">
+                <div class="legend-dot" style="background:#2dd4bf"></div> Layer 2
+              </div>
+              <div class="legend-item">
+                <div class="legend-dot" style="background:#f472b6"></div> Layer 3
+              </div>
+              <div class="legend-item">
+                <div class="legend-dot" style="background:#fbbf24"></div> Fine-tune
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Results gallery -->
+    <div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div class="section-label" style="margin:0">Output Figures</div>
+        <button onclick="loadGallery()" style="background:transparent;border:1px solid var(--border);color:var(--text2);padding:5px 12px;border-radius:6px;font-size:11px;cursor:pointer;font-family:inherit">
+          ↻ Refresh
+        </button>
+      </div>
+      <div class="gallery-grid" id="gallery">
+        {% if figures %}
+          {% for f in figures %}
+          <div class="gallery-card" onclick="openLightbox('/api/figure/{{ f.file }}','{{ f.label }}')">
+            <img src="/api/figure/{{ f.file }}?t={{ f.mtime }}" alt="{{ f.label }}" loading="lazy" onerror="this.style.height='80px'"/>
+            <div class="gallery-card-footer">
+              <span class="gallery-icon">
+                {% if f.name == 'fig_dataset_samples' %}🗃️
+                {% elif f.name == 'fig_training_curves' %}📈
+                {% elif f.name == 'fig_weight_filters' %}🎨
+                {% elif f.name == 'fig_reconstructions' %}🔄
+                {% elif f.name == 'fig_tsne_representations' %}🌐
+                {% elif f.name == 'fig_activation_heatmap' %}🔥
+                {% elif f.name == 'fig_generated_samples' %}✨
+                {% else %}📊{% endif %}
+              </span>
+              <span class="gallery-label">{{ f.label }}</span>
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="empty-state" style="grid-column:1/-1">
+            <div class="empty-icon">🖼️</div>
+            <div class="empty-text">No figures yet — run the training to generate outputs</div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+  </main>
+</div>
+</div><!-- /page-dash -->
+
+<!-- ── ABOUT & THEORY PAGE ─────────────────────────────────────────────── -->
+<div class="page" id="page-about">
+<div class="about-wrap">
+
+  <!-- Hero -->
+  <div class="about-hero">
+    <h1>Deep Boltzmann Machine</h1>
+    <p>
+      A <strong style="color:var(--text)">Deep Boltzmann Machine (DBM)</strong> is a generative, energy-based
+      model composed of stacked <strong style="color:var(--text)">Restricted Boltzmann Machines (RBMs)</strong>.
+      Unlike feed-forward networks, DBMs learn a <em>joint probability distribution</em> over inputs and hidden
+      representations &mdash; enabling both feature learning and generation of new samples.
+    </p>
+    <div class="meta-chips">
+      <div class="chip">&#128300; Generative Model</div>
+      <div class="chip">&#9889; Energy-Based Learning</div>
+      <div class="chip">&#128260; Contrastive Divergence</div>
+      <div class="chip">&#128208; Variational Inference</div>
+      <div class="chip">&#128451; MNIST / Bars &amp; Stripes</div>
+    </div>
+  </div>
+
+  <!-- Training workflow -->
+  <div class="eq-box">
+    <h3>Training Workflow</h3>
+    <div class="flow-row">
+      <div class="flow-step"><div class="step-num">Step 1</div><div class="step-name">Load Data</div><div class="step-desc">MNIST or synthetic</div></div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-step"><div class="step-num">Step 2</div><div class="step-name">Greedy Pre-train</div><div class="step-desc">Layer-by-layer RBM (CD-k)</div></div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-step"><div class="step-num">Step 3</div><div class="step-name">Fine-tune DBM</div><div class="step-desc">Mean-field + PCD</div></div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-step"><div class="step-num">Step 4</div><div class="step-name">Evaluate</div><div class="step-desc">Reconstruction MSE</div></div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-step"><div class="step-num">Step 5</div><div class="step-name">Visualise</div><div class="step-desc">7 output figures</div></div>
+    </div>
+  </div>
+
+  <!-- Key equations -->
+  <div class="eq-box">
+    <h3>Key Equations</h3>
+    <div class="eq-row"><div class="eq-name">Energy function</div><div class="eq-formula">E(v,h) = -v&sup2;Wh &minus; b&sup2;v &minus; c&sup2;h</div></div>
+    <div class="eq-row"><div class="eq-name">Conditional P(h|v)</div><div class="eq-formula">P(h_j=1 | v) = sigmoid( c_j + &Sigma;_i v_i W_ij )</div></div>
+    <div class="eq-row"><div class="eq-name">Conditional P(v|h)</div><div class="eq-formula">P(v_i=1 | h) = sigmoid( b_i + &Sigma;_j h_j W_ij )</div></div>
+    <div class="eq-row"><div class="eq-name">CD-k weight update</div><div class="eq-formula">&Delta;W = &eta; &middot; ( &langle;vh&rangle;_data &minus; &langle;vh&rangle;_model )</div></div>
+    <div class="eq-row"><div class="eq-name">Mean-field update</div><div class="eq-formula">&mu;_i &larr; sigmoid( 2W&middot;v + W'&sup2;&middot;&mu;_{i+1} + c )  [DBM positive phase]</div></div>
+    <div class="eq-row"><div class="eq-name">Free energy</div><div class="eq-formula">F(v) = &minus;b&sup2;v &minus; &Sigma;_j log(1 + exp(c_j + W_j&middot;v))</div></div>
+    <div class="eq-row"><div class="eq-name">Recon. MSE</div><div class="eq-formula">MSE = (1/N) &Sigma; ||x &minus; decode(encode(x))||&sup2;</div></div>
+  </div>
+
+  <!-- Theory cards -->
+  <div class="theory-grid">
+    <div class="theory-card">
+      <h3>&#128311; Restricted Boltzmann Machine</h3>
+      <p>An RBM is a two-layer undirected graphical model with <strong style="color:var(--text)">visible</strong> units <code>v</code> and <strong style="color:var(--text)">hidden</strong> units <code>h</code>. The &ldquo;restricted&rdquo; means no intra-layer connections.</p>
+      <ul style="margin-top:8px">
+        <li>Visible &harr; Hidden: fully connected</li>
+        <li>No visible&ndash;visible or hidden&ndash;hidden edges</li>
+        <li>Trained with <strong style="color:var(--text)">Contrastive Divergence (CD-k)</strong></li>
+        <li>Momentum SGD with L2 weight decay</li>
+      </ul>
+    </div>
+    <div class="theory-card">
+      <h3>&#128312; Deep Boltzmann Machine</h3>
+      <p>A DBM stacks multiple RBMs. All layers are <strong style="color:var(--text)">undirected</strong> &mdash; inference propagates both upward and downward, capturing higher-order correlations.</p>
+      <ul style="margin-top:8px">
+        <li>Greedy layer-wise pre-training (RBM style)</li>
+        <li>Global refinement via <strong style="color:var(--text)">mean-field variational inference</strong></li>
+        <li>Negative phase sampled by <strong style="color:var(--text)">Persistent CD (PCD)</strong></li>
+        <li>Bottom layer weights doubled (DBM convention)</li>
+      </ul>
+    </div>
+    <div class="theory-card">
+      <h3>&#9881;&#65039; Contrastive Divergence (CD-k)</h3>
+      <p>CD-k approximates the intractable log-likelihood gradient by running only <code>k</code> Gibbs steps from the data distribution instead of to convergence.</p>
+      <ul style="margin-top:8px">
+        <li><strong style="color:var(--text)">Positive phase</strong>: clamp <code>v</code> to data, sample <code>h</code></li>
+        <li><strong style="color:var(--text)">Negative phase</strong>: run k Gibbs steps</li>
+        <li>Update: <code>&Delta;W &prop; &langle;vh&rangle;_0 &minus; &langle;vh&rangle;_k</code></li>
+        <li>k=1 works well in practice (fast convergence)</li>
+      </ul>
+    </div>
+    <div class="theory-card">
+      <h3>&#128202; Evaluation Metrics</h3>
+      <p>The model is evaluated by encoding validation data up through all layers, then decoding back to pixel space and computing the <strong style="color:var(--text)">Mean Squared Error (MSE)</strong>.</p>
+      <ul style="margin-top:8px">
+        <li><strong style="color:var(--text)">Pre-train MSE</strong>: quality after greedy pre-training</li>
+        <li><strong style="color:var(--text)">Fine-tune MSE</strong>: quality after global fine-tuning</li>
+        <li><strong style="color:var(--text)">Improvement %</strong>: gain from fine-tuning phase</li>
+        <li>Lower MSE = better reconstruction quality</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Output figures guide -->
+  <div class="eq-box">
+    <h3>&#128193; Generated Output Figures</h3>
+    <table class="fig-table">
+      <thead><tr><th>Figure</th><th>What it shows</th><th>Type</th></tr></thead>
+      <tbody>
+        <tr><td>Dataset Samples</td><td>Grid of raw input images from the training set</td><td><span class="tag tag-purple">Data</span></td></tr>
+        <tr><td>Training Loss Curves</td><td>Reconstruction error per batch for each RBM layer + fine-tune</td><td><span class="tag tag-amber">Training</span></td></tr>
+        <tr><td>Learned Weight Filters</td><td>First-layer filters (receptive fields) projected to pixel space</td><td><span class="tag tag-teal">Weights</span></td></tr>
+        <tr><td>Reconstruction Quality</td><td>Side-by-side comparison of original vs DBM-reconstructed images</td><td><span class="tag tag-teal">Evaluation</span></td></tr>
+        <tr><td>t-SNE Representations</td><td>2D t-SNE embedding of hidden representations per layer, by class</td><td><span class="tag tag-purple">Analysis</span></td></tr>
+        <tr><td>Activation Heatmap</td><td>Heatmap of hidden unit activations for first 50 validation samples</td><td><span class="tag tag-purple">Analysis</span></td></tr>
+        <tr><td>Generated Samples</td><td>Images sampled from DBM via ancestral Gibbs sampling (500 steps)</td><td><span class="tag tag-amber">Generation</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Project files -->
+  <div class="eq-box">
+    <h3>&#128194; Project Files</h3>
+    <table class="fig-table">
+      <thead><tr><th>File</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td><code>rbm.py</code></td><td>RBM: sigmoid activation, CD-k, momentum SGD, free energy</td></tr>
+        <tr><td><code>dbm.py</code></td><td>DBM: stacks RBMs, mean-field inference, PCD fine-tuning, sampling</td></tr>
+        <tr><td><code>train.py</code></td><td>End-to-end experiment: load data &rarr; pre-train &rarr; fine-tune &rarr; visualise</td></tr>
+        <tr><td><code>visualize.py</code></td><td>Matplotlib plots for all 7 output figures (dark theme)</td></tr>
+        <tr><td><code>app.py</code></td><td>Flask web server: REST API + Server-Sent Events + figure serving</td></tr>
+        <tr><td><code>templates/index.html</code></td><td>This dashboard &mdash; fully offline, zero external CDN dependencies</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+</div><!-- /page-about -->
+
+<!-- ── Lightbox ───────────────────────────────────────────────────────────── -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox(event)">
+  <div class="lightbox-inner">
+    <button class="lightbox-close" onclick="document.getElementById('lightbox').classList.remove('open')">✕</button>
+    <img id="lightboxImg" src="" alt=""/>
+    <div class="lightbox-caption" id="lightboxCaption"></div>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   Dashboard JavaScript
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+// ── Page navigation ─────────────────────────────────────────────────────────
+function showPage(page) {
+  document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.page-tab').forEach(el => el.classList.remove('active'));
+  const targetPage = document.getElementById('page-' + page);
+  const targetTab = document.getElementById('ptab-' + page);
+  if (targetPage) targetPage.classList.add('active');
+  if (targetTab) targetTab.classList.add('active');
+  if (page === 'dash') {
+    requestAnimationFrame(drawChart);
+  }
+}
+
+// ── State ────────────────────────────────────────────────────────────────────
+let currentJobId = null;
+let evtSource = null;
+let startTs = null;
+let timerInterval = null;
+let chartData = { 1:[], 2:[], 3:[], ft:[] };
+let currentLayer = 0;
+let currentPhase = 'idle';   // idle | pretrain | finetune | done
+let totalEpochs = { pretrain: 25, finetune: 15 };
+let epochCounts = { 1:0, 2:0, 3:0, ft:0 };
+
+// ── Chart setup (hand-drawn canvas) ─────────────────────────────────────────
+const LAYER_COLORS = ['#7c6af7','#2dd4bf','#f472b6','#fbbf24'];
+let canvas, ctx;
+
+function initDashboard() {
+  canvas = document.getElementById('liveChart');
+  if (canvas) ctx = canvas.getContext('2d');
+  renderArchDiagram(64, [64, 32, 16]);
+  loadGallery();
+  drawChart();
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initDashboard);
+} else {
+  initDashboard();
+}
+
+function drawChart() {
+  if (!canvas || !ctx) return;
+  const W = canvas.offsetWidth;
+  const H = canvas.offsetHeight;
+  if (!W || !H) return;
+  canvas.width  = W * window.devicePixelRatio;
+  canvas.height = H * window.devicePixelRatio;
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Background
+  ctx.fillStyle = '#050508';
+  ctx.fillRect(0, 0, W, H);
+
+  const pad = { top: 14, right: 14, bottom: 28, left: 44 };
+  const cW = W - pad.left - pad.right;
+  const cH = H - pad.top - pad.bottom;
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(42,42,68,0.8)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.top + (cH / 4) * i;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + cW, y); ctx.stroke();
+  }
+
+  // Gather all data
+  const allVals = [
+    ...chartData[1], ...chartData[2], ...chartData[3], ...chartData.ft
+  ];
+  if (allVals.length === 0) {
+    ctx.fillStyle = 'rgba(96,96,128,0.5)';
+    ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('Run training to see live error curves', W/2, H/2);
+    return;
+  }
+  const maxVal = Math.max(...allVals) * 1.05;
+  const minVal = 0;
+
+  // Y axis labels
+  ctx.fillStyle = 'rgba(144,144,184,0.7)';
+  ctx.font = '9px Consolas, "Courier New", monospace'; ctx.textAlign = 'right';
+  for (let i = 0; i <= 4; i++) {
+    const val = maxVal - (maxVal / 4) * i;
+    const y = pad.top + (cH / 4) * i;
+    ctx.fillText(val.toFixed(3), pad.left - 4, y + 3);
+  }
+
+  // Draw series
+  const allSeries = [
+    { key: 1, col: LAYER_COLORS[0], label: 'Layer 1' },
+    { key: 2, col: LAYER_COLORS[1], label: 'Layer 2' },
+    { key: 3, col: LAYER_COLORS[2], label: 'Layer 3' },
+    { key: 'ft', col: LAYER_COLORS[3], label: 'Fine-tune' },
+  ];
+
+  allSeries.forEach(({ key, col }) => {
+    const pts = chartData[key];
+    if (pts.length < 2) return;
+    const xStep = cW / Math.max(pts.length - 1, 1);
+
+    // Gradient fill
+    const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + cH);
+    grad.addColorStop(0, col + '33');
+    grad.addColorStop(1, col + '00');
+    ctx.beginPath();
+    pts.forEach((v, i) => {
+      const x = pad.left + i * xStep;
+      const y = pad.top + cH * (1 - (v - minVal) / (maxVal - minVal));
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.lineTo(pad.left + (pts.length-1) * xStep, pad.top + cH);
+    ctx.lineTo(pad.left, pad.top + cH);
+    ctx.closePath();
+    ctx.fillStyle = grad; ctx.fill();
+
+    // Line
+    ctx.beginPath();
+    ctx.strokeStyle = col; ctx.lineWidth = 2;
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    pts.forEach((v, i) => {
+      const x = pad.left + i * xStep;
+      const y = pad.top + cH * (1 - (v - minVal) / (maxVal - minVal));
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    // Last dot
+    const last = pts[pts.length - 1];
+    const lx = pad.left + (pts.length-1) * xStep;
+    const ly = pad.top + cH * (1 - (last - minVal) / (maxVal - minVal));
+    ctx.beginPath();
+    ctx.arc(lx, ly, 3.5, 0, Math.PI*2);
+    ctx.fillStyle = col; ctx.fill();
+  });
+}
+
+// ── Architecture diagram ─────────────────────────────────────────────────────
+function renderArchDiagram(visible, hidden) {
+  const sizes = [visible, ...hidden];
+  const labels = ['Visible', ...hidden.map((_,i)=>`Hidden ${i+1}`)];
+  const colors = ['#7c6af7','#f472b6','#2dd4bf','#fbbf24'];
+  const maxW = Math.max(...sizes);
+
+  let html = '';
+  sizes.forEach((s, i) => {
+    const pct = Math.max(30, Math.round((s / maxW) * 100));
+    html += `
+      <div class="arch-layer">
+        <div class="arch-layer-bar" style="width:${pct}%;background:linear-gradient(135deg,${colors[i]}cc,${colors[i]}66)">
+          ${s} units
+        </div>
+        <div class="arch-layer-label">${labels[i]}</div>
+      </div>`;
+    if (i < sizes.length - 1) {
+      html += `<div class="arch-arrow bidirectional" style="margin:2px 0"></div>`;
+    }
+  });
+  document.getElementById('archDiagram').innerHTML = html;
+}
+
+// ── LR helper ───────────────────────────────────────────────────────────────
+const LR_MAP = { 1:'0.001', 2:'0.01', 3:'0.05', 4:'0.1', 5:'0.2' };
+function updateLR(v) { document.getElementById('valLR').textContent = LR_MAP[v]; }
+function updateH(id, v) {
+  document.getElementById(`val${id}`).textContent = v == 0 ? 'Auto' : v;
+}
+
+// ── Tab switch ───────────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  document.getElementById('panel-'+name).classList.add('active');
+  if (name === 'chart') drawChart();
+}
+
+// ── Start training ────────────────────────────────────────────────────────────
+async function startTraining() {
+  // Reset state
+  chartData = { 1:[], 2:[], 3:[], ft:[] };
+  epochCounts = { 1:0, 2:0, 3:0, ft:0 };
+  currentLayer = 0; currentPhase = 'pretrain';
+  document.getElementById('logTerminal').innerHTML = '';
+  setProgress(0, 'Starting…', 0, 3, 'pretrain');
+  setStatus('running', 'Training…');
+
+  // Reset pips
+  ['pip1','pip2','pip3','pip4'].forEach(id=>{
+    const el = document.getElementById(id);
+    el.className = 'layer-pip';
+    if (id==='pip4') el.style.background='rgba(251,191,36,0.2)';
+    else el.style.background='';
+  });
+
+  const params = {
+    pretrain_epochs: +document.getElementById('sliderPretrain').value,
+    finetune_epochs: +document.getElementById('sliderFinetune').value,
+    learning_rate:   +LR_MAP[+document.getElementById('sliderLR').value],
+    batch_size:      +document.getElementById('sliderBatch').value,
+    n_samples:       +document.getElementById('sliderSamples').value,
+    h1: +document.getElementById('sliderH1').value,
+    h2: +document.getElementById('sliderH2').value,
+    h3: +document.getElementById('sliderH3').value,
+  };
+  totalEpochs = { pretrain: params.pretrain_epochs, finetune: params.finetune_epochs };
+
+  document.getElementById('btnRun').disabled = true;
+  document.getElementById('btnStop').disabled = false;
+
+  startTs = Date.now();
+  timerInterval = setInterval(()=>{
+    const s = ((Date.now()-startTs)/1000).toFixed(1);
+    document.getElementById('statTime').textContent = s;
+    document.getElementById('elapsedText').textContent = s+'s';
+  }, 100);
+
+  try {
+    const res = await fetch('/api/run', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(params)
+    });
+    const { job_id } = await res.json();
+    currentJobId = job_id;
+    subscribeToStream(job_id);
+  } catch(e) {
+    appendLog(`Error: ${e.message}`, 'warn');
+    setStatus('error', 'Error');
+    resetButtons();
+  }
+}
+
+function subscribeToStream(jobId) {
+  if (evtSource) evtSource.close();
+  evtSource = new EventSource(`/api/stream/${jobId}`);
+  evtSource.onmessage = (e) => handleEvent(JSON.parse(e.data));
+  evtSource.onerror   = () => { evtSource.close(); };
+}
+
+// ── Event handler ─────────────────────────────────────────────────────────────
+function handleEvent(data) {
+  if (data.type === 'ping') return;
+
+  if (data.type === 'log') {
+    const line = data.text;
+    let cls = 'info';
+    if (line.includes('Epoch') && line.includes('|'))     cls = 'epoch';
+    if (line.includes('===') || line.includes('---'))      cls = 'header';
+    if (line.includes('[') && /\[.\\/5\]/.test(line))     cls = 'section';
+    if (line.includes('Saved') || line.includes('Saved')) cls = 'saved';
+    if (line.includes('Validation MSE') || line.includes('improvement')) cls = 'metric';
+    if (line.includes('Error') && !line.includes('Recon')) cls = 'warn';
+    if (line.includes('Architecture') || line.includes('Dataset')) cls = 'metric';
+    appendLog(line, cls);
+  }
+
+  if (data.type === 'layer') {
+    currentLayer = data.layer || 1;
+    document.getElementById('statLayer').textContent = currentLayer;
+    activatePip(currentLayer);
+    currentPhase = 'pretrain';
+  }
+
+  if (data.type === 'epoch') {
+    const { layer, epoch, total, error } = data;
+    epochCounts[layer] = (epochCounts[layer]||0) + 1;
+
+    // Update stats
+    document.getElementById('statEpoch').textContent = epoch;
+    document.getElementById('statEpochOf').textContent = `of ${total} epochs`;
+    document.getElementById('statError').textContent = error.toFixed(6);
+
+    // Chart
+    chartData[layer].push(error);
+    drawChart();
+
+    // Progress
+    const totalPretrain = totalEpochs.pretrain * 3;
+    const done = (layer-1)*totalEpochs.pretrain + epoch;
+    const pct = Math.round((done / totalPretrain) * 80);
+    setProgress(pct, `Layer ${layer} Pre-training  (epoch ${epoch}/${total})`, layer-1, 3, 'pretrain');
+  }
+
+  // Fine-tune epoch from log parsing
+  if (data.type === 'log' && data.text.includes('Fine-tuning') && data.text.includes('Epoch')) {
+    try {
+      const err = parseFloat(data.text.split('Recon Error:')[1]);
+      const epochStr = data.text.split('Epoch')[1].trim().split('/');
+      const ep = parseInt(epochStr[0]);
+      const tot = parseInt(epochStr[1]);
+      chartData.ft.push(err);
+      drawChart();
+      const pct = 80 + Math.round((ep/tot)*20);
+      activatePip(4);
+      setProgress(pct, `Fine-tuning DBM  (epoch ${ep}/${tot})`, 3, 4, 'finetune');
+      document.getElementById('statEpoch').textContent = ep;
+      document.getElementById('statEpochOf').textContent = `of ${tot} fine-tune epochs`;
+      document.getElementById('statError').textContent = err.toFixed(6);
+    } catch(_){}
+  }
+
+  // Metric lines
+  if (data.type === 'log') {
+    const t = data.text;
+    if (t.includes('Pre-train MSE')) document.getElementById('metaPretrain').textContent = t.split(':')[1]?.trim()||'';
+    if (t.includes('Fine-tune MSE')) document.getElementById('metaFinetune').textContent = t.split(':')[1]?.trim()||'';
+    if (t.includes('Improvement'))   document.getElementById('metaImprove').textContent  = t.split(':')[1]?.trim()||'';
+    if (t.includes('Architecture'))  document.getElementById('metaArch').textContent     = t.split(':')[1]?.trim()||'';
+
+    // Parse architecture for diagram
+    if (t.includes('Architecture:') && t.includes('->')) {
+      const parts = t.split(':')[1].trim().split('->').map(s=>parseInt(s.trim()));
+      if (parts.length === 4) renderArchDiagram(parts[0], parts.slice(1));
+    }
+  }
+
+  if (data.type === 'done') {
+    setProgress(100, 'Training complete!', 4, 4, 'done');
+    setStatus('done', 'Done');
+    clearInterval(timerInterval);
+    resetButtons();
+    appendLog('', '');
+    appendLog('  Training finished! Loading results…', 'saved');
+    setTimeout(loadGallery, 1500);
+    markAllPipsDone();
+  }
+
+  if (data.type === 'error') {
+    appendLog(data.text, 'warn');
+    setStatus('error', 'Error');
+    resetButtons();
+    clearInterval(timerInterval);
+  }
+}
+
+// ── Stop training ─────────────────────────────────────────────────────────────
+async function stopTraining() {
+  await fetch('/api/stop', { method:'POST' });
+  if (evtSource) evtSource.close();
+  clearInterval(timerInterval);
+  setStatus('', 'Stopped');
+  resetButtons();
+  appendLog('  Job stopped by user.', 'warn');
+}
+
+// ── UI helpers ─────────────────────────────────────────────────────────────────
+function appendLog(text, cls='info') {
+  const term = document.getElementById('logTerminal');
+  const existing = term.querySelector('.log-cursor');
+  if (existing) existing.classList.remove('log-cursor');
+
+  const div = document.createElement('div');
+  div.className = `log-line ${cls}`;
+  div.textContent = text;
+  if (cls === 'info' || cls === 'epoch') div.classList.add('log-cursor');
+  term.appendChild(div);
+  term.scrollTop = term.scrollHeight;
+
+  // Keep only last 500 lines
+  while (term.children.length > 500) term.removeChild(term.firstChild);
+}
+
+function setStatus(state, text) {
+  const dot = document.getElementById('statusDot');
+  dot.className = 'status-dot ' + state;
+  document.getElementById('statusText').textContent = text;
+}
+
+function setProgress(pct, label, donePips, totalPips, phase) {
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressPct').textContent  = pct + '%';
+  document.getElementById('progressLabel').textContent = label;
+}
+
+function activatePip(layer) {
+  const pipIds = ['pip1','pip2','pip3','pip4'];
+  pipIds.forEach((id, i) => {
+    const el = document.getElementById(id);
+    if (i < layer - 1) {
+      el.className = 'layer-pip done';
+      el.style.background = '';
+    } else if (i === layer - 1) {
+      el.className = 'layer-pip active';
+      el.style.background = '';
+    }
+  });
+}
+
+function markAllPipsDone() {
+  ['pip1','pip2','pip3','pip4'].forEach(id=>{
+    const el = document.getElementById(id);
+    el.className = 'layer-pip done';
+    el.style.background = '';
+  });
+}
+
+function resetButtons() {
+  document.getElementById('btnRun').disabled  = false;
+  document.getElementById('btnStop').disabled = true;
+}
+
+// ── Gallery ──────────────────────────────────────────────────────────────────
+const GALLERY_ICONS = {
+  'fig_dataset_samples':      '🗃️',
+  'fig_training_curves':      '📈',
+  'fig_weight_filters':       '🎨',
+  'fig_reconstructions':      '🔄',
+  'fig_tsne_representations': '🌐',
+  'fig_activation_heatmap':   '🔥',
+  'fig_generated_samples':    '✨',
+};
+
+async function loadGallery() {
+  const res = await fetch('/api/figures');
+  const figs = await res.json();
+  const gallery = document.getElementById('gallery');
+
+  if (!figs.length) {
+    gallery.innerHTML = `
+      <div class="empty-state" style="grid-column:1/-1">
+        <div class="empty-icon">🖼️</div>
+        <div class="empty-text">No figures yet — run the training to generate outputs</div>
+      </div>`;
+    return;
+  }
+
+  gallery.innerHTML = figs.map(f => `
+    <div class="gallery-card" onclick="openLightbox('/api/figure/${f.file}','${f.label}')">
+      <img src="/api/figure/${f.file}?t=${f.mtime}" alt="${f.label}"
+           loading="lazy" onerror="this.style.height='80px'"/>
+      <div class="gallery-card-footer">
+        <span class="gallery-icon">${GALLERY_ICONS[f.name]||'📊'}</span>
+        <span class="gallery-label">${f.label}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ── Lightbox ──────────────────────────────────────────────────────────────────
+function openLightbox(src, caption) {
+  document.getElementById('lightboxImg').src = src;
+  document.getElementById('lightboxCaption').textContent = caption;
+  document.getElementById('lightbox').classList.add('open');
+}
+function closeLightbox(e) {
+  if (e.target === document.getElementById('lightbox'))
+    document.getElementById('lightbox').classList.remove('open');
+}
+
+// ── Global window bindings ────────────────────────────────────────────────────
+window.showPage = showPage;
+window.switchTab = switchTab;
+window.startTraining = startTraining;
+window.stopTraining = stopTraining;
+window.loadGallery = loadGallery;
+window.openLightbox = openLightbox;
+window.closeLightbox = closeLightbox;
+window.updateLR = updateLR;
+window.updateH = updateH;
+
+// ── Resize chart on window resize ─────────────────────────────────────────────
+window.addEventListener('resize', drawChart);
+</script>
+</body>
+</html>
