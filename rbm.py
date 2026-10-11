@@ -13,10 +13,9 @@ import numpy as np
 # ─────────────────────────────────────────────────────────────────────────────
 
 def sigmoid(x: np.ndarray) -> np.ndarray:
-    """Numerically stable sigmoid."""
-    return np.where(x >= 0,
-                    1.0 / (1.0 + np.exp(-x)),
-                    np.exp(x) / (1.0 + np.exp(x)))
+    """Numerically stable sigmoid with bounded exponentiation."""
+    x_clipped = np.clip(x, -30.0, 30.0)
+    return 1.0 / (1.0 + np.exp(-x_clipped))
 
 
 def sample_binary(probs: np.ndarray) -> np.ndarray:

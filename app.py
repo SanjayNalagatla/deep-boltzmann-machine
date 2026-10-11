@@ -218,8 +218,12 @@ def _parse_metrics(job_id: str, line: str):
             layer = int(line.split("Layer")[1].strip().split()[0])
             m["current_layer"] = layer
         except Exception:
-            pass
-        q.put({"type": "layer", "text": line})
+            layer = 1
+        q.put({"type": "layer", "layer": layer, "text": line})
+
+    if "Fine-tuning DBM" in line:
+        m["current_layer"] = 4
+        q.put({"type": "layer", "layer": 4, "text": line})
 
     # Epoch error line: "  Epoch  N/M  |  Recon Error: X.XXXXXX"
     if "Recon Error:" in line and "Epoch" in line:
@@ -239,28 +243,36 @@ def _parse_metrics(job_id: str, line: str):
         except Exception:
             pass
 
-    # Pre-train / fine-tune MSE
-    if "Validation MSE (post pre-train)" in line:
-        try:
-            m["pretrain_mse"] = float(line.split(":")[1].strip())
-        except Exception:
-            pass
-    if "Validation MSE (post fine-tune)" in line:
-        try:
-            m["finetune_mse"] = float(line.split(":")[1].strip())
-        except Exception:
-            pass
-    if "MSE improvement" in line:
-        try:
-            m["improvement"] = line.split(":")[1].strip()
-        except Exception:
-            pass
-    if "Architecture" in line and "->" in line:
-        try:
-            m["architecture"] = line.split(":")[1].strip()
-        except Exception:
-            pass
-    if "Dataset" in line and "Bars" in line or "MNIST" in line:
+    # Summary metrics
+    if "Pre-train MSE" in line and ":" in line:
+        val = line.split(":")[1].strip()
+        m["pretrain_mse"] = val
+        q.put({"type": "metric", "key": "pretrain", "val": val})
+    elif "Validation MSE (post pre-train)" in line:
+        val = line.split(":")[1].strip()
+        m["pretrain_mse"] = val
+        q.put({"type": "metric", "key": "pretrain", "val": val})
+
+    if "Fine-tune MSE" in line and ":" in line:
+        val = line.split(":")[1].strip()
+        m["finetune_mse"] = val
+        q.put({"type": "metric", "key": "finetune", "val": val})
+    elif "Validation MSE (post fine-tune)" in line:
+        val = line.split(":")[1].strip()
+        m["finetune_mse"] = val
+        q.put({"type": "metric", "key": "finetune", "val": val})
+
+    if ("MSE improvement" in line or "Improvement" in line) and ":" in line:
+        val = line.split(":")[1].strip()
+        m["improvement"] = val
+        q.put({"type": "metric", "key": "improve", "val": val})
+
+    if "Architecture" in line and ":" in line:
+        val = line.split(":")[1].strip()
+        m["architecture"] = val
+        q.put({"type": "metric", "key": "arch", "val": val})
+
+    if "Dataset" in line and ":" in line:
         try:
             m["dataset"] = line.split(":")[1].strip()
         except Exception:

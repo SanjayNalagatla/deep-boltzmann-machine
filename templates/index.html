@@ -1255,9 +1255,16 @@ function handleEvent(data) {
 
   if (data.type === 'layer') {
     currentLayer = data.layer || 1;
-    document.getElementById('statLayer').textContent = currentLayer;
+    document.getElementById('statLayer').textContent = currentLayer <= 3 ? currentLayer : 'Fine-tuning';
     activatePip(currentLayer);
-    currentPhase = 'pretrain';
+    currentPhase = currentLayer <= 3 ? 'pretrain' : 'finetune';
+  }
+
+  if (data.type === 'metric') {
+    if (data.key === 'pretrain') document.getElementById('metaPretrain').textContent = data.val;
+    if (data.key === 'finetune') document.getElementById('metaFinetune').textContent = data.val;
+    if (data.key === 'improve')  document.getElementById('metaImprove').textContent  = data.val;
+    if (data.key === 'arch')     document.getElementById('metaArch').textContent     = data.val;
   }
 
   if (data.type === 'epoch') {

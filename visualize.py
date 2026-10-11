@@ -204,7 +204,7 @@ def plot_tsne_representations(representations, y, layer_names=None,
         perp = min(30, rep.shape[0] // 4)
         tsne = TSNE(n_components=2, perplexity=perp,
                     random_state=42, max_iter=1000, learning_rate="auto",
-                    init="pca")
+                    init="random")
         emb = tsne.fit_transform(rep)
 
         for cls in range(n_classes):

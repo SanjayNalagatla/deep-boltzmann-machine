@@ -4,96 +4,148 @@
 [![Flask](https://img.shields.io/badge/Flask-Web%20Dashboard-green.svg)](https://flask.palletsprojects.com/)
 [![License](https://img.shields.io/badge/License-MIT-purple.svg)](LICENSE)
 [![Unsupervised Learning](https://img.shields.io/badge/Method-Energy--Based%20Model-orange.svg)](https://en.wikipedia.org/wiki/Boltzmann_machine)
+[![PyTorch](https://img.shields.io/badge/PyTorch-1.10%2B-EE4C2C.svg)](https://pytorch.org/)
 
-An end-to-end implementation of a **Deep Boltzmann Machine (DBM)** with greedy layer-wise Restricted Boltzmann Machine (RBM) pre-training, Gibbs sampling, and an **interactive, modern web dashboard** for real-time monitoring, live training execution, and visual analytics.
+An end-to-end, production-ready implementation of a **Deep Boltzmann Machine (DBM)** with greedy layer-wise Restricted Boltzmann Machine (RBM) pre-training, Persistent Contrastive Divergence (PCD) fine-tuning, Gibbs sampling, and an **interactive, modern web dashboard** for real-time monitoring, live training execution, and visual analytics.
 
 ---
 
-## 📸 Interactive Web Dashboard Preview
+## 📸 Interactive Web Dashboard in Action
 
-The project comes with a built-in Flask web application providing a dark-mode glassmorphic control center to launch training, stream execution logs in real-time, inspect mathematical derivations, and interact with all output figures.
+The project includes a built-in Flask web dashboard featuring a dark glassmorphic UI, real-time hyperparameter configuration, live streaming execution logs, and an integrated visual results gallery.
 
-### Dashboard Overview & Control Center
+### 1. Live Training Execution & Dynamic Output Gallery
+The dashboard provides a unified view showing model architecture, active hyperparameters, real-time training progress with streaming logs, and immediate display of generated evaluation cards:
+![Live Dashboard Output](assets/screenshots/dashboard_live_output.png)
+
+### 2. Control Center & Hyperparameter Tuning
+Easily configure pre-training epochs, fine-tuning epochs, learning rates, batch sizes, sample counts, and custom hidden layer dimensions:
 ![Dashboard Overview](assets/screenshots/dashboard_overview.png)
 
-### Real-time Training Execution & Live Streaming Logs
-![Live Training Progress](assets/screenshots/training_progress.png)
-
-### Model Theory, Architecture & Mathematical Derivations Panel
+### 3. Model Theory & Mathematical Formulation Panel
+An in-app theoretical reference detailing the probabilistic graphical foundations, energy formulations, and inference algorithms:
 ![Model Theory & Architecture](assets/screenshots/model_theory.png)
 
 ---
 
 ## 🌟 Key Features
 
-- **Full Deep Energy-Based Architecture**: 2-layer Deep Boltzmann Machine ($v \leftrightarrow h_1 \leftrightarrow h_2$) with undirected symmetric bipartite connections.
-- **Greedy Layer-Wise Pretraining**: Pre-trains lower and upper layers using Contrastive Divergence ($CD_k$) / Persistent Contrastive Divergence ($PCD$) before joint training.
-- **Gibbs Sampling & Reconstructions**: Fast stochastic alternating Gibbs sampling for fantasy generative dreaming and visible reconstruction.
-- **Interactive Web Dashboard**: Built with a dark glassmorphism UI, real-time training controls, architecture inspection, mathematical theory breakdown, and dynamic visual gallery.
-- **Robust Dataset Pipeline**: 3-tier fallback data loader (Torchvision MNIST $\rightarrow$ Scikit-Learn OpenML $\rightarrow$ Synthetic High-Entropy digits) ensuring zero crashes across any environment.
-- **Rich Visual Analytics**: Generates weight receptive field filters, t-SNE feature cluster embeddings, hidden layer activation heatmaps, and reconstruction quality comparisons.
+- **Deep Energy-Based Model**: Full multi-layer undirected probabilistic graphical model ($v \leftrightarrow h_1 \leftrightarrow h_2 \leftrightarrow h_3$) with symmetric bipartite connections.
+- **Greedy Layer-Wise Pretraining**: Overcomes deep vanishing gradient and local minima barriers by pre-training stacked RBMs using Contrastive Divergence ($CD_k$).
+- **Joint Variational Mean-Field Fine-Tuning**: Positive phase computed via variational mean-field fixed-point iterations, paired with Persistent Contrastive Divergence ($PCD$) in the negative phase.
+- **Free-Running Gibbs Dreaming**: Unconditional stochastic sampling to produce fantasy digits directly from random noise states.
+- **Modern Interactive Dashboard**: Zero external CDN dependencies (100% offline capable), server-sent event (SSE) log streaming, canvas-drawn training curves, and lightbox zoom for all figures.
+- **Robust 3-Tier Data Pipeline**: Seamless fallback from Torchvision MNIST $\to$ Scikit-Learn OpenML $\to$ High-Entropy Synthetic Digits, ensuring zero runtime crashes regardless of network or local environment.
+- **7 Publication-Grade Visualizations**: Matplotlib plots covering receptive field weight filters, t-SNE representation clusters, activation heatmaps, and reconstruction comparisons.
 
 ---
 
-## 🧠 Model Architecture & Mathematical Theory
+## 🧠 Model Architecture & Mathematical Formulation
 
-A Deep Boltzmann Machine is an undirected probabilistic graphical model composed of multiple layers of stochastic binary units. Unlike Deep Belief Networks (DBNs) which are directed, DBMs have undirected connections between all adjacent layers:
+Unlike Deep Belief Networks (DBNs) which are directed generative models with undirected top layers, a **Deep Boltzmann Machine (DBM)** features **undirected symmetric connections between all adjacent layers**. This enables bidirectional information flow: top-down feedback refines lower-level representations, while bottom-up signals drive higher-level feature abstraction.
 
 ```text
-    [ Layer 2: Hidden Units (h2) ]    (e.g., 64 units)
-                 ▲ ▼  W2
-    [ Layer 1: Hidden Units (h1) ]    (e.g., 256 units)
-                 ▲ ▼  W1
-    [ Layer 0: Visible Units (v) ]    (e.g., 784 units: 28x28 pixels)
+    ┌──────────────────────────────────────────────┐
+    │          Layer 3: Hidden Units (h3)          │   e.g., 16 units
+    └──────────────────────┬───────────────────────┘
+                           │ ▲  W3 (Undirected)
+                           ▼ │
+    ┌──────────────────────────────────────────────┐
+    │          Layer 2: Hidden Units (h2)          │   e.g., 32 units
+    └──────────────────────┬───────────────────────┘
+                           │ ▲  W2 (Undirected)
+                           ▼ │
+    ┌──────────────────────────────────────────────┐
+    │          Layer 1: Hidden Units (h1)          │   e.g., 64 units
+    └──────────────────────┬───────────────────────┘
+                           │ ▲  W1 (Undirected)
+                           ▼ │
+    ┌──────────────────────────────────────────────┐
+    │          Layer 0: Visible Units (v)          │   e.g., 784 units (28×28 pixels)
+    └──────────────────────────────────────────────┘
 ```
 
-### 1. Energy Function
-$$E(v, h_1, h_2) = - v^T W_1 h_1 - h_1^T W_2 h_2 - b^T v - c_1^T h_1 - c_2^T h_2$$
+### 1. Joint Energy Function
+The energy of a state configuration $(v, h_1, h_2, h_3)$ is defined as:
+
+$$E(v, h_1, h_2, h_3) = - v^T W_1 h_1 - h_1^T W_2 h_2 - h_2^T W_3 h_3 - b^T v - c_1^T h_1 - c_2^T h_2 - c_3^T h_3$$
 
 Where:
-- $v \in \{0, 1\}^D$: Visible input vector
-- $h_1 \in \{0, 1\}^{H_1}$, $h_2 \in \{0, 1\}^{H_2}$: Hidden representation vectors
-- $W_1, W_2$: Weight matrices connecting adjacent layers
-- $b, c_1, c_2$: Bias terms for visible and hidden layers
+- $v \in \{0, 1\}^D$: Visible layer binary units
+- $h_l \in \{0, 1\}^{H_l}$: Stochastic binary units at hidden layer $l$
+- $W_l$: Weight matrices connecting layer $l-1$ and layer $l$
+- $b, c_l$: Bias vectors for visible and hidden layers
 
-### 2. Conditional Distributions (Mean-Field Inference)
-Because layers only interact with adjacent layers (bipartite independence):
-$$P(h_{1j} = 1 \mid v, h_2) = \sigma\left( \sum_i v_i W_{1, ij} + \sum_k W_{2, jk} h_{2k} + c_{1j} \right)$$
-$$P(h_{2k} = 1 \mid h_1) = \sigma\left( \sum_j h_{1j} W_{2, jk} + c_{2k} \right)$$
-$$P(v_i = 1 \mid h_1) = \sigma\left( \sum_j W_{1, ij} h_{1j} + b_i \right)$$
+The joint probability distribution over all units is governed by the Boltzmann distribution:
+
+$$P(v, h_1, h_2, h_3) = \frac{1}{Z} \exp\left(-E(v, h_1, h_2, h_3)\right), \quad Z = \sum_{v, h_1, h_2, h_3} \exp\left(-E(v, h_1, h_2, h_3)\right)$$
+
+### 2. Positive Phase: Variational Mean-Field Inference
+Because hidden layers are coupled in a DBM, conditioning on $v$ does not yield mutually independent hidden states. We approximate the true posterior $P(h \mid v)$ with a fully factorized variational distribution $Q(h \mid v) = \prod_i q(h_i)$, solved through iterative fixed-point mean-field updates:
+
+$$\mu_1 \leftarrow \sigma\left( v W_1 + \mu_2 W_2^T + c_1 \right)$$
+
+$$\mu_2 \leftarrow \sigma\left( \mu_1 W_2 + \mu_3 W_3^T + c_2 \right)$$
+
+$$\mu_3 \leftarrow \sigma\left( \mu_2 W_3 + c_3 \right)$$
+
+Where $\sigma(z) = \frac{1}{1 + e^{-z}}$ is the sigmoid activation function, and $\mu_l$ denotes the expected activation (mean field) of layer $l$.
+
+### 3. Negative Phase: Persistent Contrastive Divergence (PCD)
+To approximate expectations under the model distribution without waiting for MCMC chains to burn in at each parameter update, persistent Gibbs chains maintain state across mini-batches:
+
+$$v_{neg}, h_{neg} \sim \text{GibbsStep}(v_{persistent}, h_{persistent})$$
+
+Parameter gradients are computed as the difference between data-dependent and model expectations:
+
+$$\Delta W_l = \eta \left( \mathbb{E}_{data}[\mu_{l-1}^T \mu_l] - \mathbb{E}_{model}[h_{l-1, neg}^T h_{l, neg}] \right) - \lambda W_l$$
 
 ---
 
-## 📊 Experimental Results & Visualizations
+## 📊 Experimental Results & Diagnostic Gallery
 
-The training process generates 7 publication-grade diagnostic visualizations:
+During model execution, the pipeline automatically generates 7 evaluation figures saved directly to the root directory and served in the web gallery:
 
-### 1. Input Dataset Samples
-Sample binarized digit inputs normalized to $28 \times 28$ grayscale pixels:
+| Figure | Description | Purpose |
+| :--- | :--- | :--- |
+| **`fig_dataset_samples.png`** | Binarized $28 \times 28$ input samples from the training set | Data verification |
+| **`fig_training_curves.png`** | Reconstruction error across epochs for RBMs and joint DBM | Convergence diagnostics |
+| **`fig_weight_filters.png`** | First-layer weight filters ($W_1$) visualized as 2D receptive fields | Feature detector analysis |
+| **`fig_reconstructions.png`** | Side-by-side original inputs vs. DBM reconstructed digits | Reconstruction fidelity |
+| **`fig_activation_heatmap.png`** | Hidden layer unit activation sparsity across validation samples | Latent representation sparsity |
+| **`fig_generated_samples.png`** | Ancestral Gibbs sampling fantasy digits drawn from noise | Generative capacity |
+| **`fig_tsne_representations.png`** | 2D t-SNE projection of learned hidden representations | Latent manifold clustering |
+
+---
+
+### Detailed Visual Analysis
+
+#### 1. Input Dataset Samples
+Input digits normalized and binarized for stochastic binary visible unit processing:
 ![Dataset Samples](assets/results/fig_dataset_samples.png)
 
-### 2. Training Reconstruction Error Curves
-Shows convergence curves during layer-wise pretraining (RBM1, RBM2) and joint DBM training:
+#### 2. Training Convergence Curves
+Loss trajectories showing smooth decrease during greedy pre-training (RBM1, RBM2, RBM3) followed by global refinement in PCD fine-tuning:
 ![Training Curves](assets/results/fig_training_curves.png)
 
-### 3. Learned Weight Filters (Receptive Fields)
-First-layer weights $W_1$ visualized as $28 \times 28$ feature detectors. Notice the learned stroke, edge, and loop detectors:
+#### 3. Learned Weight Filters (Receptive Fields)
+First-layer weights $W_1$ projected into $28 \times 28$ pixel space. The model automatically learns localized edge detectors, pen-stroke filters, and loop detectors without supervision:
 ![Weight Filters](assets/results/fig_weight_filters.png)
 
-### 4. Input vs. Reconstructed Images
-Comparison between original test digits and their reconstructions through Gibbs sampling ($v \to h_1 \to v'$):
-![Reconstructions](assets/results/fig_reconstructions.png)
+#### 4. Reconstruction Quality
+Test digits passed through the full encoder-decoder Gibbs cycle ($v \to h_1 \to v'$). Notice the clear reconstruction of canonical digit shapes:
+![Reconstruction Quality](assets/results/fig_reconstructions.png)
 
-### 5. Hidden Layer Activation Heatmaps
-Activation sparsity across both hidden layers ($H_1$ and $H_2$), validating distributed hierarchical representation:
+#### 5. Hidden Layer Activation Heatmaps
+Activation distributions across validation samples, demonstrating distributed, sparse representations without dead neurons:
 ![Activation Heatmaps](assets/results/fig_activation_heatmap.png)
 
-### 6. Free-Running Gibbs Fantasies (Generative Samples)
-Generated digits produced by the network sampling freely from random noise without conditioning on visible inputs:
+#### 6. Free-Running Generative Samples (Gibbs Fantasy)
+Samples generated by initializing the visible units with uniform random noise and running alternating Gibbs sampling for 500 steps:
 ![Generated Samples](assets/results/fig_generated_samples.png)
 
-### 7. t-SNE Clustering of Latent Representations
-2D t-SNE projection of the deepest layer representations ($h_2$), demonstrating clear class separation in unsupervised latent space:
+#### 7. t-SNE Clustering of Latent Representations
+2D t-SNE manifold projections of the deepest hidden representations. Digits of the same class naturally cluster together in latent space without ever seeing digit labels:
 ![t-SNE Representations](assets/results/fig_tsne_representations.png)
 
 ---
@@ -102,23 +154,24 @@ Generated digits produced by the network sampling freely from random noise witho
 
 ```text
 deep-boltzmann-machine/
-├── app.py                      # Flask web dashboard application and API server
-├── dbm.py                      # Deep Boltzmann Machine joint model implementation
-├── rbm.py                      # Restricted Boltzmann Machine building blocks (CD-k / PCD)
-├── train.py                    # Complete training pipeline (Pretraining + Joint training)
-├── visualize.py                # Publication-grade visualization suite (matplotlib)
+├── app.py                      # Flask web server: REST API, SSE streaming & UI routes
+├── dbm.py                      # Deep Boltzmann Machine joint model (Mean-Field + PCD)
+├── rbm.py                      # Restricted Boltzmann Machine building blocks (CD-k + Momentum)
+├── train.py                    # Complete end-to-end training & evaluation pipeline
+├── visualize.py                # Publication-grade plotting suite (dark aesthetic)
 ├── requirements.txt            # Python dependencies
-├── .gitignore                  # Git ignore rules for cached and transient files
+├── .gitignore                  # Git ignore rules for cached datasets and virtualenvs
 ├── LICENSE                     # MIT License
 ├── templates/
-│   └── index.html              # Modern dark-mode dashboard UI with theory panel
+│   └── index.html              # Responsive dark-mode dashboard (Zero external CDN)
 └── assets/
-    ├── screenshots/            # Dashboard UI and live progress screenshots
+    ├── screenshots/            # Dashboard UI and execution screenshots
+    │   ├── dashboard_live_output.png
     │   ├── dashboard_overview.png
     │   ├── training_progress.png
     │   ├── dashboard_gallery.png
     │   └── model_theory.png
-    └── results/                # High-resolution output evaluation figures
+    └── results/                # High-resolution output figures
         ├── fig_dataset_samples.png
         ├── fig_training_curves.png
         ├── fig_weight_filters.png
@@ -138,12 +191,22 @@ git clone https://github.com/SanjayNalagatla/deep-boltzmann-machine.git
 cd deep-boltzmann-machine
 ```
 
-### 2. Install Dependencies
+### 2. Set Up Virtual Environment & Install Dependencies
 ```bash
+# Create virtual environment
+python -m venv venv
+
+# Activate virtual environment
+# Windows:
+.\venv\Scripts\activate
+# macOS/Linux:
+source venv/bin/activate
+
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-### 3. Launch the Interactive Dashboard
+### 3. Launch the Interactive Web Dashboard
 ```bash
 python app.py
 ```
@@ -151,41 +214,43 @@ Open your browser and navigate to:
 ```
 http://127.0.0.1:5000
 ```
-From the web UI, you can:
-- Trigger one-click pre-training and joint fine-tuning
-- Watch real-time streaming console logs
-- Inspect mathematical formulas, energy derivations, and layer parameters
-- Examine the generated visualization figures directly in the gallery
+- Click **▶ Run Training** to start training with live streaming terminal logs.
+- Adjust sliders in real time for quick experiments or deep training runs.
+- Click any figure card in the gallery to open a high-resolution lightbox view.
 
-### 4. Or Run Training via Command Line
+### 4. Or Run via Command Line Interface (CLI)
 ```bash
 python train.py
 ```
-This runs the full pipeline:
-1. Loads/prepares the dataset
-2. Pre-trains RBM-1 ($784 \to 256$)
-3. Pre-trains RBM-2 ($256 \to 64$)
-4. Initializes and jointly trains the Deep Boltzmann Machine
-5. Generates all 7 diagnostic figures
+You can also override hyperparameters directly via environment variables:
+```bash
+# Windows PowerShell:
+$env:DBM_PRETRAIN_EPOCHS="15"; $env:DBM_FINETUNE_EPOCHS="10"; $env:DBM_N_SAMPLES="1000"; python train.py
+
+# Linux / macOS:
+DBM_PRETRAIN_EPOCHS=15 DBM_FINETUNE_EPOCHS=10 DBM_N_SAMPLES=1000 python train.py
+```
 
 ---
 
-## 🛠️ Tech Stack
+## 🛠️ Technical Stack & Implementation Details
 
-- **Core Algorithm**: NumPy, PyTorch (tensor manipulation and data loading)
-- **Dimensionality Reduction**: Scikit-Learn (t-SNE manifold projections)
-- **Visualization**: Matplotlib
-- **Web Application**: Flask, HTML5, CSS3 Glassmorphism, Vanilla JS (Zero external CDN dependencies)
+- **Deep Learning / Core Math**: NumPy, PyTorch (for tensor utilities and fast data batching)
+- **Dimensionality Reduction**: Scikit-Learn (`TSNE` manifold estimation)
+- **Visual Analytics**: Matplotlib (custom dark theme with high DPI outputs)
+- **Web Backend**: Flask (Server-Sent Events streaming, REST API, non-blocking subprocess management)
+- **Web Frontend**: Modern Vanilla HTML5 / CSS3 / JavaScript (Glassmorphic cards, CSS grid, SVG icons, zero CDN dependencies)
 
 ---
 
-## 📜 References
+## 📜 Academic References
 
-1. Salakhutdinov, R., & Hinton, G. (2009). *Deep Boltzmann Machines*. In Proceedings of the International Conference on Artificial Intelligence and Statistics (AISTATS).
-2. Hinton, G. E. (2002). *Training Products of Experts by Minimizing Contrastive Divergence*. Neural Computation, 14(8), 1771-1800.
-3. Hinton, G. E. (2012). *A Practical Guide to Training Restricted Boltzmann Machines*. Neural Networks: Tricks of the Trade.
+1. **Salakhutdinov, R., & Hinton, G.** (2009). *Deep Boltzmann Machines*. In Proceedings of the 12th International Conference on Artificial Intelligence and Statistics (AISTATS).
+2. **Hinton, G. E.** (2002). *Training Products of Experts by Minimizing Contrastive Divergence*. Neural Computation, 14(8), 1771-1800.
+3. **Hinton, G. E.** (2012). *A Practical Guide to Training Restricted Boltzmann Machines*. Neural Networks: Tricks of the Trade, Springer.
+4. **Tieleman, T.** (2008). *Training Restricted Boltzmann Machines using Approximations to the Likelihood Gradient*. In Proceedings of the 25th International Conference on Machine Learning (ICML).
 
 ---
 
 ## 📄 License
-This project is licensed under the [MIT License](LICENSE).
+This project is open-source and distributed under the [MIT License](LICENSE).
